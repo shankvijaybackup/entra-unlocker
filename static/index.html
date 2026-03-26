@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atom Banking — Sign-In Monitor</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    * { font-family: 'Inter', -apple-system, sans-serif; }
+    code, .mono { font-family: 'JetBrains Mono', monospace; }
+    body { background: #0a0e1a; color: #e2e8f0; margin: 0; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #111827; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    .glass { background: rgba(17, 24, 39, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(55, 65, 81, 0.5); }
+    .glow-green { box-shadow: 0 0 20px rgba(16, 185, 129, 0.15); }
+    .glow-red { box-shadow: 0 0 20px rgba(239, 68, 68, 0.15); }
+    .glow-blue { box-shadow: 0 0 20px rgba(59, 130, 246, 0.15); }
+    .pulse-dot { animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+    .slide-in { animation: slideIn 0.3s ease-out; }
+    .input-field { background: #1f2937; border: 1px solid #374151; color: #e2e8f0; border-radius: 8px; padding: 10px 14px; width: 100%; outline: none; transition: border 0.2s; }
+    .input-field:focus { border-color: #3b82f6; }
+    .btn { padding: 8px 20px; border-radius: 8px; font-weight: 500; cursor: pointer; transition: all 0.2s; border: none; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-success { background: #10b981; color: white; }
+    .btn-success:hover { background: #059669; }
+    .btn-danger { background: #ef4444; color: white; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-ghost { background: transparent; color: #9ca3af; border: 1px solid #374151; }
+    .btn-ghost:hover { background: #1f2937; color: white; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; }
+    .badge-green { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .badge-red { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+    .badge-yellow { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .badge-blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .sidebar-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-radius: 8px; cursor: pointer; transition: all 0.15s; color: #9ca3af; }
+    .sidebar-item:hover { background: rgba(55, 65, 81, 0.5); color: #e2e8f0; }
+    .sidebar-item.active { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .event-row { border-left: 3px solid transparent; padding: 12px 16px; transition: all 0.15s; }
+    .event-row:hover { background: rgba(55, 65, 81, 0.3); }
+    .event-row.critical { border-left-color: #ef4444; background: rgba(239, 68, 68, 0.05); }
+    .event-row.warning { border-left-color: #f59e0b; }
+    .event-row.low { border-left-color: #6b7280; }
+    .step-success { color: #34d399; }
+    .step-failed { color: #f87171; }
+    .step-pending { color: #9ca3af; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 12px 16px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; border-bottom: 1px solid #1f2937; }
+    td { padding: 12px 16px; border-bottom: 1px solid rgba(31, 41, 55, 0.5); }
+    .config-section { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ═══════════════════════════════════════════════════════
+//  ICONS (inline SVG)
+// ═══════════════════════════════════════════════════════
+
+const Icon = ({ name, size = 18 }) => {
+  const icons = {
+    dashboard: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
+    settings: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>,
+    users: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>,
+    activity: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+    shield: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+    check: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>,
+    x: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+    lock: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
+    zap: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+    loader: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{animation:'spin 1s linear infinite'}}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>,
+    phone: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>,
+    cloud: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>,
+    play: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>,
+    stop: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>,
+  };
+  return icons[name] || null;
+};
+
+// ═══════════════════════════════════════════════════════
+//  API HELPERS
+// ═══════════════════════════════════════════════════════
+
+const api = {
+  get: async (url) => { const r = await fetch(url); if (!r.ok) throw new Error(await r.text()); return r.json(); },
+  post: async (url, body) => { const r = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }); if (!r.ok) throw new Error(await r.text()); return r.json(); },
+};
+
+// ═══════════════════════════════════════════════════════
+//  STATUS BADGE
+// ═══════════════════════════════════════════════════════
+
+const StatusBadge = ({ status, label }) => {
+  const cls = status === 'connected' || status === 'success' ? 'badge-green' : status === 'error' || status === 'failed' ? 'badge-red' : status === 'partial' ? 'badge-yellow' : 'badge-blue';
+  return <span className={`badge ${cls}`}>{label || status}</span>;
+};
+
+// ═══════════════════════════════════════════════════════
+//  SETTINGS PAGE
+// ═══════════════════════════════════════════════════════
+
+const SettingsPage = () => {
+  const [config, setConfig] = useState({});
+  const [configured, setConfigured] = useState({});
+  const [tests, setTests] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState({});
+
+  useEffect(() => {
+    api.get('/api/config').then(data => {
+      const c = {...data};
+      const conf = c._configured || {};
+      delete c._configured;
+      delete c._permissions;
+      setConfig(c);
+      setConfigured(conf);
+    }).catch(() => {});
+  }, []);
+
+  const handleChange = (key, val) => setConfig(prev => ({...prev, [key]: val}));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.post('/api/config', { config });
+      // Reload to get masked values
+      const data = await api.get('/api/config');
+      const c = {...data};
+      const conf = c._configured || {};
+      delete c._configured; delete c._permissions;
+      setConfig(c);
+      setConfigured(conf);
+    } catch(e) { alert('Save failed: ' + e.message); }
+    setSaving(false);
+  };
+
+  const runTest = async (service) => {
+    setTesting(prev => ({...prev, [service]: true}));
+    try {
+      const result = await api.get(`/api/test/${service}`);
+      setTests(prev => ({...prev, [service]: result}));
+    } catch(e) {
+      setTests(prev => ({...prev, [service]: {status:'error', message: e.message}}));
+    }
+    setTesting(prev => ({...prev, [service]: false}));
+  };
+
+  const Field = ({ label, configKey, type = "text", placeholder = "" }) => (
+    <div style={{marginBottom: 12}}>
+      <label style={{display:'block', fontSize:13, color:'#9ca3af', marginBottom:4}}>
+        {label}
+        {configured[configKey] && <span style={{color:'#34d399', marginLeft:8, fontSize:11}}>configured</span>}
+      </label>
+      <input
+        className="input-field mono"
+        type={type}
+        placeholder={placeholder}
+        value={config[configKey] || ''}
+        onChange={e => handleChange(configKey, e.target.value)}
+        style={{fontSize: 13}}
+      />
+    </div>
+  );
+
+  const TestButton = ({ service, label }) => (
+    <button
+      className="btn btn-ghost"
+      onClick={() => runTest(service)}
+      disabled={testing[service]}
+      style={{fontSize: 13, display:'flex', alignItems:'center', gap:6}}
+    >
+      {testing[service] ? <Icon name="loader" size={14}/> : <Icon name="zap" size={14}/>}
+      {testing[service] ? 'Testing...' : `Test ${label}`}
+    </button>
+  );
+
+  const TestResult = ({ service }) => {
+    const t = tests[service];
+    if (!t) return null;
+    return (
+      <div className="slide-in" style={{marginTop:8, padding:'8px 12px', borderRadius:8, background: t.status === 'connected' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', fontSize:13}}>
+        <StatusBadge status={t.status}/> <span style={{marginLeft:8}}>{t.message}</span>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <h1 style={{fontSize:24, fontWeight:700, marginBottom:4}}>Settings</h1>
+      <p style={{color:'#6b7280', marginBottom:24}}>Configure and verify your service connections. All credentials are encrypted at rest.</p>
+
+      {/* Azure AD */}
+      <div className="config-section">
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
+          <div style={{display:'flex', alignItems:'center', gap:10}}>
+            <div style={{background:'rgba(59,130,246,0.15)', borderRadius:8, padding:8}}><Icon name="cloud" size={20}/></div>
+            <div>
+              <h3 style={{fontSize:16, fontWeight:600, margin:0}}>Azure AD</h3>
+              <p style={{fontSize:12, color:'#6b7280', margin:0}}>Required: AuditLog.Read.All, Directory.Read.All, User.ReadWrite.All</p>
+            </div>
+          </div>
+          <TestButton service="azure" label="Connection"/>
+        </div>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+          <Field label="Tenant ID" configKey="AZURE_TENANT_ID" placeholder="6adf129d-..."/>
+          <Field label="Client ID" configKey="AZURE_CLIENT_ID" placeholder="267c8a9f-..."/>
+        </div>
+        <Field label="Client Secret" configKey="AZURE_CLIENT_SECRET" type="password" placeholder="ral8Q~..."/>
+        <TestResult service="azure"/>
+      </div>
+
+      {/* Atomicwork */}
+      <div className="config-section">
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
+          <div style={{display:'flex', alignItems:'center', gap:10}}>
+            <div style={{background:'rgba(16,185,129,0.15)', borderRadius:8, padding:8}}><Icon name="shield" size={20}/></div>
+            <div>
+              <h3 style={{fontSize:16, fontWeight:600, margin:0}}>Atomicwork</h3>
+              <p style={{fontSize:12, color:'#6b7280', margin:0}}>ITSM platform for ticket creation and user lookup</p>
+            </div>
+          </div>
+          <TestButton service="atomicwork" label="Connection"/>
+        </div>
+        <Field label="Account URL" configKey="ATOMICWORK_BASE_URL" placeholder="https://atombanking.atomicwork.com"/>
+        <Field label="API Key" configKey="ATOMICWORK_API_KEY" type="password" placeholder="aw_b2d3..."/>
+        <TestResult service="atomicwork"/>
+      </div>
+
+      {/* Twilio */}
+      <div className="config-section">
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
+          <div style={{display:'flex', alignItems:'center', gap:10}}>
+            <div style={{background:'rgba(245,158,11,0.15)', borderRadius:8, padding:8}}><Icon name="phone" size={20}/></div>
+            <div>
+              <h3 style={{fontSize:16, fontWeight:600, margin:0}}>Twilio SMS</h3>
+              <p style={{fontSize:12, color:'#6b7280', margin:0}}>Sends temp passwords to users via SMS</p>
+            </div>
+          </div>
+          <TestButton service="twilio" label="Connection"/>
+        </div>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+          <Field label="Account SID" configKey="TWILIO_ACCOUNT_SID" placeholder="AC1dd9..."/>
+          <Field label="From Number" configKey="TWILIO_FROM_NUMBER" placeholder="+17372324130"/>
+        </div>
+        <Field label="Auth Token" configKey="TWILIO_AUTH_TOKEN" type="password" placeholder="a0db6c..."/>
+        <TestResult service="twilio"/>
+      </div>
+
+      {/* Event Hub */}
+      <div className="config-section">
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
+          <div style={{display:'flex', alignItems:'center', gap:10}}>
+            <div style={{background:'rgba(139,92,246,0.15)', borderRadius:8, padding:8}}><Icon name="activity" size={20}/></div>
+            <div>
+              <h3 style={{fontSize:16, fontWeight:600, margin:0}}>Azure Event Hub</h3>
+              <p style={{fontSize:12, color:'#6b7280', margin:0}}>Real-time sign-in event streaming</p>
+            </div>
+          </div>
+          <TestButton service="eventhub" label="Connection"/>
+        </div>
+        <Field label="Connection String" configKey="EVENTHUB_CONNECTION_STRING" type="password" placeholder="Endpoint=sb://..."/>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+          <Field label="Hub Name" configKey="EVENTHUB_NAME" placeholder="signin-events"/>
+          <Field label="Lockout Threshold" configKey="LOCKOUT_THRESHOLD" placeholder="5"/>
+        </div>
+        <TestResult service="eventhub"/>
+      </div>
+
+      <div style={{display:'flex', justifyContent:'flex-end', marginTop:16}}>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{fontSize:14, padding:'10px 32px'}}>
+          {saving ? 'Saving...' : 'Save & Encrypt'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════
+//  USERS PAGE
+// ═══════════════════════════════════════════════════════
+
+const UsersPage = () => {
+  const [azureUsers, setAzureUsers] = useState([]);
+  const [awUsers, setAwUsers] = useState([]);
+  const [loading, setLoading] = useState({azure: false, aw: false});
+  const [error, setError] = useState({});
+  const [view, setView] = useState('azure');
+
+  const loadAzure = async () => {
+    setLoading(prev => ({...prev, azure: true}));
+    try {
+      const data = await api.get('/api/users/azure');
+      setAzureUsers(data.users);
+    } catch(e) { setError(prev => ({...prev, azure: e.message})); }
+    setLoading(prev => ({...prev, azure: false}));
+  };
+
+  const loadAtomicwork = async () => {
+    setLoading(prev => ({...prev, aw: true}));
+    try {
+      const data = await api.get('/api/users/atomicwork');
+      setAwUsers(data.users);
+    } catch(e) { setError(prev => ({...prev, aw: e.message})); }
+    setLoading(prev => ({...prev, aw: false}));
+  };
+
+  useEffect(() => { loadAzure(); loadAtomicwork(); }, []);
+
+  const users = view === 'azure' ? azureUsers : awUsers;
+  const isLoading = view === 'azure' ? loading.azure : loading.aw;
+
+  return (
+    <div>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24}}>
+        <div>
+          <h1 style={{fontSize:24, fontWeight:700, marginBottom:4}}>User Directory</h1>
+          <p style={{color:'#6b7280'}}>Azure AD ({azureUsers.length}) and Atomicwork ({awUsers.length}) users</p>
+        </div>
+        <div style={{display:'flex', gap:8}}>
+          <button className={`btn ${view==='azure' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setView('azure')} style={{fontSize:13}}>Azure AD</button>
+          <button className={`btn ${view==='atomicwork' ? 'btn-success' : 'btn-ghost'}`} onClick={() => setView('atomicwork')} style={{fontSize:13}}>Atomicwork</button>
+          <button className="btn btn-ghost" onClick={view === 'azure' ? loadAzure : loadAtomicwork} style={{fontSize:13}}>Refresh</button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div style={{textAlign:'center', padding:40, color:'#6b7280'}}><Icon name="loader" size={24}/> Loading users...</div>
+      ) : error[view] ? (
+        <div style={{padding:16, background:'rgba(239,68,68,0.1)', borderRadius:8, color:'#f87171'}}>{error[view]}</div>
+      ) : (
+        <div className="glass" style={{borderRadius:12, overflow:'hidden'}}>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                {view === 'azure' && <th>Status</th>}
+                <th>{view === 'atomicwork' ? 'Requester ID' : 'Department'}</th>
+                <th>Title</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u, i) => (
+                <tr key={i} style={{cursor:'pointer'}} onMouseOver={e => e.currentTarget.style.background='rgba(55,65,81,0.3)'} onMouseOut={e => e.currentTarget.style.background='transparent'}>
+                  <td style={{fontWeight:500}}>{u.name || '—'}</td>
+                  <td><span className="mono" style={{fontSize:12, color:'#9ca3af'}}>{u.email || u.mail || '—'}</span></td>
+                  <td><span className="mono" style={{fontSize:12, color: u.phone ? '#34d399' : '#6b7280'}}>{u.phone || 'None'}</span></td>
+                  {view === 'azure' && <td>{u.enabled ? <StatusBadge status="connected" label="Enabled"/> : <StatusBadge status="error" label="Disabled"/>}</td>}
+                  <td style={{fontSize:13, color:'#9ca3af'}}>{view === 'atomicwork' ? u.id : (u.department || '—')}</td>
+                  <td style={{fontSize:13, color:'#9ca3af'}}>{u.title || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════
+//  LIVE FEED PAGE
+// ═══════════════════════════════════════════════════════
+
+const LiveFeedPage = () => {
+  const [events, setEvents] = useState([]);
+  const [connected, setConnected] = useState(false);
+  const [streaming, setStreaming] = useState(false);
+  const wsRef = useRef(null);
+  const eventsEndRef = useRef(null);
+
+  const connectWS = useCallback(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/events`);
+    wsRef.current = ws;
+
+    ws.onopen = () => setConnected(true);
+    ws.onclose = () => { setConnected(false); setTimeout(connectWS, 3000); };
+    ws.onmessage = (msg) => {
+      const data = JSON.parse(msg.data);
+      if (data.type === 'history') {
+        setEvents(data.data || []);
+      } else if (data.type === 'event') {
+        setEvents(prev => [...prev.slice(-200), data.data]);
+      } else if (data.type === 'remediation' || data.type === 'auto_remediation') {
+        setEvents(prev => [...prev.slice(-200), { ...data.data, isRemediation: true }]);
+      } else if (data.type === 'ping') {
+        ws.send('ping');
+      }
+    };
+  }, []);
+
+  useEffect(() => { connectWS(); return () => { if(wsRef.current) wsRef.current.close(); }; }, [connectWS]);
+  useEffect(() => { eventsEndRef.current?.scrollIntoView({behavior:'smooth'}); }, [events]);
+
+  const startStream = async () => {
+    try { await api.post('/api/eventhub/start'); setStreaming(true); } catch(e) { alert(e.message); }
+  };
+  const stopStream = async () => {
+    try { await api.post('/api/eventhub/stop'); setStreaming(false); } catch(e) { alert(e.message); }
+  };
+
+  return (
+    <div>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24}}>
+        <div>
+          <h1 style={{fontSize:24, fontWeight:700, marginBottom:4}}>
+            <span style={{display:'inline-flex', alignItems:'center', gap:8}}>
+              Live Event Feed
+              {connected && <span className="pulse-dot" style={{width:8, height:8, borderRadius:'50%', background:'#10b981', display:'inline-block'}}/>}
+            </span>
+          </h1>
+          <p style={{color:'#6b7280'}}>Real-time sign-in events from Azure Event Hub</p>
+        </div>
+        <div style={{display:'flex', gap:8, alignItems:'center'}}>
+          <span style={{fontSize:12, color: connected ? '#34d399' : '#f87171'}}>
+            {connected ? 'WebSocket connected' : 'Disconnected'}
+          </span>
+          {!streaming ? (
+            <button className="btn btn-success" onClick={startStream} style={{display:'flex', alignItems:'center', gap:6, fontSize:13}}>
+              <Icon name="play" size={14}/> Start Stream
+            </button>
+          ) : (
+            <button className="btn btn-danger" onClick={stopStream} style={{display:'flex', alignItems:'center', gap:6, fontSize:13}}>
+              <Icon name="stop" size={14}/> Stop
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="glass" style={{borderRadius:12, maxHeight:'calc(100vh - 200px)', overflowY:'auto'}}>
+        {events.length === 0 ? (
+          <div style={{textAlign:'center', padding:60, color:'#6b7280'}}>
+            <Icon name="activity" size={32}/>
+            <p style={{marginTop:12}}>No events yet. Click "Start Stream" and trigger some sign-in failures.</p>
+          </div>
+        ) : events.map((evt, i) => (
+          <div key={i} className={`event-row slide-in ${evt.isCritical ? 'critical' : evt.errorCode === 50126 ? 'warning' : 'low'}`}>
+            {evt.isRemediation ? (
+              <div>
+                <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:4}}>
+                  <Icon name="zap" size={16}/>
+                  <span style={{fontWeight:600, color:'#34d399'}}>AUTO-REMEDIATION: {evt.name || evt.email}</span>
+                  <span className="badge badge-green">Completed</span>
+                </div>
+                {evt.steps && evt.steps.map((s, j) => (
+                  <div key={j} style={{fontSize:12, color: s.status === 'success' ? '#34d399' : s.status === 'failed' ? '#f87171' : '#9ca3af', marginLeft:24}}>
+                    {s.status === 'success' ? '✓' : s.status === 'failed' ? '✗' : '—'} {s.step}: {s.detail}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
+                <div>
+                  <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:2}}>
+                    <span style={{fontWeight:500}}>{evt.user}</span>
+                    <span className="mono" style={{fontSize:11, color:'#6b7280'}}>{evt.upn}</span>
+                    <span className={`badge ${evt.isCritical ? 'badge-red' : 'badge-yellow'}`}>{evt.errorLabel}</span>
+                  </div>
+                  <div style={{fontSize:12, color:'#6b7280'}}>
+                    {evt.app} · {evt.ip} · {evt.location}
+                    {evt.reason && <span> · {evt.reason.substring(0, 80)}</span>}
+                  </div>
+                </div>
+                <span className="mono" style={{fontSize:11, color:'#4b5563', whiteSpace:'nowrap'}}>{evt.time ? evt.time.substring(11, 19) : ''}</span>
+              </div>
+            )}
+          </div>
+        ))}
+        <div ref={eventsEndRef}/>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════
+//  REMEDIATION PAGE
+// ═══════════════════════════════════════════════════════
+
+const RemediationPage = () => {
+  const [email, setEmail] = useState('');
+  const [reason, setReason] = useState('');
+  const [result, setResult] = useState(null);
+  const [running, setRunning] = useState(false);
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    api.get('/api/remediation/history').then(d => setHistory(d.history || [])).catch(() => {});
+  }, []);
+
+  const runRemediation = async () => {
+    if (!email) return;
+    setRunning(true);
+    setResult(null);
+    try {
+      const res = await api.post('/api/remediate', { email, reason: reason || 'Manual remediation via UI' });
+      setResult(res);
+      setHistory(prev => [...prev, res]);
+    } catch(e) {
+      setResult({ error: e.message });
+    }
+    setRunning(false);
+  };
+
+  return (
+    <div>
+      <h1 style={{fontSize:24, fontWeight:700, marginBottom:4}}>Remediation</h1>
+      <p style={{color:'#6b7280', marginBottom:24}}>Manually trigger full auto-remediation: Lookup → Password Reset → SMS → Ticket → Resolve</p>
+
+      <div className="config-section">
+        <h3 style={{fontSize:16, fontWeight:600, marginBottom:16}}>Trigger Remediation</h3>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12}}>
+          <div>
+            <label style={{display:'block', fontSize:13, color:'#9ca3af', marginBottom:4}}>User Email / UPN</label>
+            <input className="input-field mono" placeholder="jacoblee@atombanking.onmicrosoft.com" value={email} onChange={e => setEmail(e.target.value)} style={{fontSize:13}}/>
+          </div>
+          <div>
+            <label style={{display:'block', fontSize:13, color:'#9ca3af', marginBottom:4}}>Reason (optional)</label>
+            <input className="input-field" placeholder="User reported lockout" value={reason} onChange={e => setReason(e.target.value)} style={{fontSize:13}}/>
+          </div>
+        </div>
+        <button className="btn btn-danger" onClick={runRemediation} disabled={running || !email} style={{display:'flex', alignItems:'center', gap:6}}>
+          {running ? <Icon name="loader" size={14}/> : <Icon name="zap" size={14}/>}
+          {running ? 'Running...' : 'Run Full Remediation'}
+        </button>
+      </div>
+
+      {result && !result.error && (
+        <div className="config-section slide-in" style={{marginTop:16}}>
+          <h3 style={{fontSize:16, fontWeight:600, marginBottom:12}}>Result: {result.name || result.email}</h3>
+          {result.steps && result.steps.map((s, i) => (
+            <div key={i} style={{display:'flex', alignItems:'center', gap:8, padding:'6px 0', fontSize:14}}>
+              <span style={{width:20, textAlign:'center'}}>
+                {s.status === 'success' ? <span style={{color:'#34d399'}}>✓</span> : s.status === 'failed' ? <span style={{color:'#f87171'}}>✗</span> : <span style={{color:'#9ca3af'}}>—</span>}
+              </span>
+              <span style={{fontWeight:500, width:120}}>{s.step}</span>
+              <span style={{color:'#9ca3af', fontSize:13}}>{s.detail}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {result && result.error && (
+        <div className="slide-in" style={{marginTop:16, padding:16, background:'rgba(239,68,68,0.1)', borderRadius:8, color:'#f87171'}}>{result.error}</div>
+      )}
+
+      {history.length > 0 && (
+        <div style={{marginTop:24}}>
+          <h3 style={{fontSize:16, fontWeight:600, marginBottom:12}}>Recent Remediations</h3>
+          <div className="glass" style={{borderRadius:12, overflow:'hidden'}}>
+            <table>
+              <thead>
+                <tr><th>User</th><th>Time</th><th>Password</th><th>SMS</th><th>Ticket</th></tr>
+              </thead>
+              <tbody>
+                {history.slice().reverse().map((h, i) => (
+                  <tr key={i}>
+                    <td style={{fontWeight:500}}>{h.name || h.email}</td>
+                    <td className="mono" style={{fontSize:12, color:'#6b7280'}}>{h.timestamp ? h.timestamp.substring(0, 19) : '—'}</td>
+                    {h.steps ? h.steps.filter(s => ['Password Reset','SMS','Ticket'].includes(s.step)).map((s, j) => (
+                      <td key={j}><StatusBadge status={s.status} label={s.status}/></td>
+                    )) : <><td>—</td><td>—</td><td>—</td></>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════
+//  DASHBOARD PAGE
+// ═══════════════════════════════════════════════════════
+
+const DashboardPage = () => {
+  const [failures, setFailures] = useState([]);
+  const [stats, setStats] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await api.get('/api/signin/failures?limit=50');
+        setFailures(data.failures || []);
+        // Compute stats
+        const f = data.failures || [];
+        const users = new Set(f.map(x => x.upn));
+        const locked = f.filter(x => [50053,50057,50055].includes(x.errorCode));
+        const badPwd = f.filter(x => x.errorCode === 50126);
+        setStats({ total: f.length, users: users.size, locked: locked.length, badPwd: badPwd.length });
+      } catch(e) {}
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  const StatCard = ({ label, value, color, icon }) => (
+    <div className={`glass glow-${color}`} style={{borderRadius:12, padding:20, flex:1}}>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+        <div>
+          <p style={{fontSize:13, color:'#6b7280', marginBottom:4}}>{label}</p>
+          <p style={{fontSize:28, fontWeight:700, margin:0}}>{value}</p>
+        </div>
+        <div style={{opacity:0.3}}><Icon name={icon} size={32}/></div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <h1 style={{fontSize:24, fontWeight:700, marginBottom:4}}>Dashboard</h1>
+      <p style={{color:'#6b7280', marginBottom:24}}>Overview of recent sign-in failures from Azure AD</p>
+
+      <div style={{display:'flex', gap:16, marginBottom:24}}>
+        <StatCard label="Total Failures" value={stats.total || 0} color="blue" icon="activity"/>
+        <StatCard label="Unique Users" value={stats.users || 0} color="green" icon="users"/>
+        <StatCard label="Locked/Disabled" value={stats.locked || 0} color="red" icon="lock"/>
+        <StatCard label="Bad Passwords" value={stats.badPwd || 0} color="yellow" icon="shield"/>
+      </div>
+
+      <div className="glass" style={{borderRadius:12, overflow:'hidden'}}>
+        <div style={{padding:'16px 20px', borderBottom:'1px solid #1f2937', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+          <h3 style={{fontSize:14, fontWeight:600, margin:0}}>Recent Sign-In Failures</h3>
+          <span style={{fontSize:12, color:'#6b7280'}}>{failures.length} events (via Graph API)</span>
+        </div>
+        {loading ? (
+          <div style={{textAlign:'center', padding:40, color:'#6b7280'}}><Icon name="loader" size={24}/></div>
+        ) : (
+          <table>
+            <thead>
+              <tr><th>User</th><th>Error</th><th>App</th><th>IP</th><th>Time</th></tr>
+            </thead>
+            <tbody>
+              {failures.slice(0, 25).map((f, i) => (
+                <tr key={i}>
+                  <td>
+                    <div style={{fontWeight:500}}>{f.user}</div>
+                    <div className="mono" style={{fontSize:11, color:'#6b7280'}}>{f.upn}</div>
+                  </td>
+                  <td><span className={`badge ${f.isCritical ? 'badge-red' : 'badge-yellow'}`}>{f.errorCode} — {f.errorLabel}</span></td>
+                  <td style={{fontSize:13, color:'#9ca3af'}}>{f.app}</td>
+                  <td className="mono" style={{fontSize:12, color:'#6b7280'}}>{f.ip}</td>
+                  <td className="mono" style={{fontSize:12, color:'#6b7280'}}>{f.time ? f.time.substring(0, 19).replace('T',' ') : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════
+//  MAIN APP
+// ═══════════════════════════════════════════════════════
+
+const App = () => {
+  const [page, setPage] = useState('dashboard');
+
+  const nav = [
+    { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+    { id: 'live', label: 'Live Feed', icon: 'activity' },
+    { id: 'users', label: 'Users', icon: 'users' },
+    { id: 'remediation', label: 'Remediation', icon: 'zap' },
+    { id: 'settings', label: 'Settings', icon: 'settings' },
+  ];
+
+  return (
+    <div style={{display:'flex', height:'100vh'}}>
+      {/* Sidebar */}
+      <div style={{width:240, background:'#111827', borderRight:'1px solid #1f2937', padding:'20px 12px', display:'flex', flexDirection:'column'}}>
+        <div style={{padding:'0 16px', marginBottom:32}}>
+          <div style={{display:'flex', alignItems:'center', gap:10}}>
+            <div style={{background:'linear-gradient(135deg, #3b82f6, #8b5cf6)', borderRadius:8, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center'}}>
+              <Icon name="shield" size={18}/>
+            </div>
+            <div>
+              <div style={{fontWeight:700, fontSize:14}}>Atom Banking</div>
+              <div style={{fontSize:11, color:'#6b7280'}}>Sign-In Monitor</div>
+            </div>
+          </div>
+        </div>
+
+        <nav style={{flex:1}}>
+          {nav.map(n => (
+            <div key={n.id} className={`sidebar-item ${page === n.id ? 'active' : ''}`} onClick={() => setPage(n.id)}>
+              <Icon name={n.icon} size={18}/>
+              <span style={{fontSize:14}}>{n.label}</span>
+              {n.id === 'live' && <span className="pulse-dot" style={{width:6, height:6, borderRadius:'50%', background:'#10b981', marginLeft:'auto'}}/>}
+            </div>
+          ))}
+        </nav>
+
+        <div style={{padding:'12px 16px', borderTop:'1px solid #1f2937', fontSize:11, color:'#4b5563'}}>
+          Credentials encrypted at rest<br/>
+          Fernet AES-128-CBC
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{flex:1, overflow:'auto', padding:32}}>
+        {page === 'dashboard' && <DashboardPage/>}
+        {page === 'live' && <LiveFeedPage/>}
+        {page === 'users' && <UsersPage/>}
+        {page === 'remediation' && <RemediationPage/>}
+        {page === 'settings' && <SettingsPage/>}
+      </div>
+    </div>
+  );
+};
+
+ReactDOM.render(<App/>, document.getElementById('root'));
+</script>
+</body>
+</html>

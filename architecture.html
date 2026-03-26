@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atom Banking — Sign-In Monitor Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2332;
+    --border: #1e293b;
+    --accent: #3b82f6;
+    --accent2: #8b5cf6;
+    --green: #10b981;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --dim: #64748b;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 0;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 60px 40px 50px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at 50% 50%, rgba(59,130,246,0.06) 0%, transparent 50%);
+  }
+  .hero h1 {
+    font-size: 2.6rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, #60a5fa, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .hero .subtitle {
+    color: var(--muted);
+    font-size: 1.1rem;
+    font-weight: 400;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .badge-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    position: relative;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.2);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #93c5fd;
+  }
+  .badge.purple { background: rgba(139,92,246,0.1); border-color: rgba(139,92,246,0.2); color: #c4b5fd; }
+  .badge.green { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.2); color: #6ee7b7; }
+  .badge.orange { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.2); color: #fcd34d; }
+
+  /* ── Container ── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 30px; }
+
+  /* ── Section ── */
+  .section { margin-bottom: 50px; }
+  .section-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .section h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+    letter-spacing: -0.02em;
+  }
+  .section .desc {
+    color: var(--muted);
+    font-size: 0.92rem;
+    margin-bottom: 24px;
+    max-width: 720px;
+  }
+
+  /* ── Architecture Diagram ── */
+  .arch-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px 30px;
+    overflow-x: auto;
+  }
+  .arch-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .arch-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    text-align: center;
+    min-width: 160px;
+    position: relative;
+  }
+  .arch-box .icon { font-size: 1.8rem; margin-bottom: 6px; }
+  .arch-box .label { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+  .arch-box .sublabel { font-size: 0.7rem; color: var(--dim); margin-top: 2px; }
+  .arch-box.azure { border-color: rgba(59,130,246,0.3); background: rgba(59,130,246,0.05); }
+  .arch-box.app { border-color: rgba(139,92,246,0.4); background: rgba(139,92,246,0.08); box-shadow: 0 0 30px rgba(139,92,246,0.08); }
+  .arch-box.ext { border-color: rgba(16,185,129,0.3); background: rgba(16,185,129,0.05); }
+  .arch-box.warn { border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.05); }
+
+  .arch-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: var(--dim);
+    font-size: 0.65rem;
+    gap: 2px;
+    min-width: 80px;
+  }
+  .arch-arrow .line {
+    width: 60px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--dim), var(--accent));
+    position: relative;
+  }
+  .arch-arrow .line::after {
+    content: '▸';
+    position: absolute;
+    right: -8px;
+    top: -7px;
+    color: var(--accent);
+    font-size: 0.9rem;
+  }
+  .arch-arrow-down {
+    display: flex;
+    justify-content: center;
+    margin: 8px 0;
+    color: var(--dim);
+    font-size: 1.2rem;
+  }
+
+  /* ── Flow Diagram ── */
+  .flow-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+  }
+  .flow-track {
+    position: relative;
+    padding-left: 40px;
+  }
+  .flow-track::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, var(--accent), var(--accent2), var(--green));
+  }
+  .flow-step {
+    position: relative;
+    margin-bottom: 24px;
+    padding: 16px 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .flow-step::before {
+    content: attr(data-step);
+    position: absolute;
+    left: -40px;
+    top: 16px;
+    width: 28px;
+    height: 28px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: white;
+    text-align: center;
+    line-height: 28px;
+    padding-left: 1px;
+  }
+  .flow-step.green::before { background: var(--green); }
+  .flow-step.purple::before { background: var(--accent2); }
+  .flow-step.orange::before { background: var(--orange); }
+  .flow-step .step-title { font-weight: 600; font-size: 0.92rem; margin-bottom: 4px; }
+  .flow-step .step-detail { font-size: 0.82rem; color: var(--muted); }
+  .flow-step code {
+    background: rgba(59,130,246,0.1);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    color: #93c5fd;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  /* ── Cards Grid ── */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px;
+  }
+  .card .card-icon { font-size: 1.5rem; margin-bottom: 8px; }
+  .card h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; }
+  .card p { font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
+  .card .tag {
+    display: inline-block;
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.15);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    color: #93c5fd;
+    margin-top: 8px;
+    margin-right: 4px;
+  }
+  .card .tag.green { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.15); color: #6ee7b7; }
+
+  /* ── API Table ── */
+  .api-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .api-table th {
+    background: var(--surface2);
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .api-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .api-table tr:last-child td { border-bottom: none; }
+  .method {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    font-family: 'SF Mono', monospace;
+  }
+  .method.get { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+  .method.post { background: rgba(59,130,246,0.15); color: #93c5fd; }
+  .method.ws { background: rgba(245,158,11,0.15); color: #fcd34d; }
+
+  .endpoint {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.78rem;
+    color: var(--text);
+  }
+
+  /* ── File Tree ── */
+  .file-tree {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.82rem;
+    line-height: 2;
+  }
+  .file-tree .dir { color: #93c5fd; font-weight: 600; }
+  .file-tree .file { color: var(--muted); }
+  .file-tree .comment { color: var(--dim); font-style: italic; font-family: 'Inter', sans-serif; font-size: 0.75rem; }
+  .indent { padding-left: 24px; }
+  .indent2 { padding-left: 48px; }
+
+  /* ── Security ── */
+  .security-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+  .sec-item {
+    display: flex;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .sec-icon { font-size: 1.3rem; flex-shrink: 0; }
+  .sec-item h4 { font-size: 0.85rem; font-weight: 600; margin-bottom: 2px; }
+  .sec-item p { font-size: 0.78rem; color: var(--muted); }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    padding: 40px 20px;
+    border-top: 1px solid var(--border);
+    color: var(--dim);
+    font-size: 0.78rem;
+  }
+
+  /* Print */
+  @media print {
+    body { background: white; color: #1a1a1a; }
+    .hero { background: #f1f5f9; }
+    .arch-box, .card, .flow-step, .sec-item { border: 1px solid #e2e8f0; background: #f8fafc; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<div class="hero">
+  <h1>Sign-In Monitor</h1>
+  <div class="subtitle">Real-Time Azure AD Failure Detection & Auto-Remediation Platform</div>
+  <div class="badge-row">
+    <span class="badge">Azure AD</span>
+    <span class="badge purple">Event Hub Streaming</span>
+    <span class="badge green">Auto-Remediation</span>
+    <span class="badge orange">Twilio SMS</span>
+    <span class="badge">Atomicwork ITSM</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ═══════════════ HIGH-LEVEL ARCHITECTURE ═══════════════ -->
+<div class="section">
+  <div class="section-label">Architecture</div>
+  <h2>System Overview</h2>
+  <div class="desc">The platform ingests Azure AD sign-in events in real time via Event Hub, detects failures and lockouts, and orchestrates automatic remediation across four external services.</div>
+
+  <div class="arch-diagram">
+    <!-- Row 1: Data Sources -->
+    <div style="text-align:center; font-size:0.7rem; font-weight:600; color:var(--dim); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:12px;">Data Sources</div>
+    <div class="arch-row">
+      <div class="arch-box azure">
+        <div class="icon">🔐</div>
+        <div class="label">Azure AD</div>
+        <div class="sublabel">Sign-In Logs</div>
+      </div>
+      <div class="arch-arrow">
+        <span>Diagnostic</span>
+        <div class="line"></div>
+        <span>Settings</span>
+      </div>
+      <div class="arch-box azure">
+        <div class="icon">📡</div>
+        <div class="label">Event Hub</div>
+        <div class="sublabel">Real-Time Stream</div>
+      </div>
+      <div class="arch-arrow">
+        <span>WebSocket</span>
+        <div class="line"></div>
+        <span>Push</span>
+      </div>
+      <div class="arch-box app">
+        <div class="icon">⚡</div>
+        <div class="label">Sign-In Monitor</div>
+        <div class="sublabel">FastAPI + React</div>
+      </div>
+    </div>
+
+    <div class="arch-arrow-down">↕</div>
+
+    <!-- Row 2: Actions -->
+    <div style="text-align:center; font-size:0.7rem; font-weight:600; color:var(--dim); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:12px;">Remediation Actions</div>
+    <div class="arch-row">
+      <div class="arch-box azure">
+        <div class="icon">🔑</div>
+        <div class="label">Graph API</div>
+        <div class="sublabel">Password Reset + Unlock</div>
+      </div>
+      <div class="arch-box ext">
+        <div class="icon">📱</div>
+        <div class="label">Twilio</div>
+        <div class="sublabel">SMS Notification</div>
+      </div>
+      <div class="arch-box ext">
+        <div class="icon">🎫</div>
+        <div class="label">Atomicwork</div>
+        <div class="sublabel">Ticket + Resolve</div>
+      </div>
+      <div class="arch-box warn">
+        <div class="icon">👤</div>
+        <div class="label">End User</div>
+        <div class="sublabel">Gets SMS + New Password</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ REMEDIATION FLOW ═══════════════ -->
+<div class="section">
+  <div class="section-label">Core Flow</div>
+  <h2>Auto-Remediation Pipeline</h2>
+  <div class="desc">When a sign-in failure event is detected that meets remediation criteria, the system executes this 5-step pipeline automatically — no human intervention required.</div>
+
+  <div class="flow-container">
+    <div class="flow-track">
+      <div class="flow-step" data-step="1">
+        <div class="step-title">Event Detection</div>
+        <div class="step-detail">
+          Event Hub consumer receives sign-in failure event. Error code is checked against remediation codes: <code>50053</code> (Account Locked), <code>50057</code> (Account Disabled), <code>50055</code> (Password Expired). For bad password events (<code>50126</code>), failures are counted — threshold breach (default: 5 in 30 min) triggers remediation.
+        </div>
+      </div>
+
+      <div class="flow-step purple" data-step="2">
+        <div class="step-title">User Lookup</div>
+        <div class="step-detail">
+          Atomicwork <code>/api/v1/users/{email}/email-lookup</code> resolves the user's full name, phone number, and requester ID. These are used for SMS delivery and ticket creation.
+        </div>
+      </div>
+
+      <div class="flow-step" data-step="3">
+        <div class="step-title">Password Reset + Account Unlock</div>
+        <div class="step-detail">
+          Microsoft Graph API <code>PATCH /users/{upn}</code> sets a cryptographically random 12-character temporary password (uppercase + lowercase + digit + special) with <code>forceChangePasswordNextSignIn: true</code>, and re-enables the account.
+        </div>
+      </div>
+
+      <div class="flow-step orange" data-step="4">
+        <div class="step-title">SMS Notification</div>
+        <div class="step-detail">
+          Twilio sends an SMS to the user's phone number with the temporary password and a link to <code>myaccount.microsoft.com</code> to change it immediately. Skipped if no phone number is on file.
+        </div>
+      </div>
+
+      <div class="flow-step green" data-step="5">
+        <div class="step-title">Ticket Creation + Auto-Resolve</div>
+        <div class="step-detail">
+          Atomicwork <code>POST /api/v1/requests/create</code> creates a high-priority incident ticket with full details. The ticket is immediately resolved via <code>PATCH /api/v1/requests/{id}</code> since remediation was successful — creating a complete audit trail.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ TRIGGER CONDITIONS ═══════════════ -->
+<div class="section">
+  <div class="section-label">Detection Logic</div>
+  <h2>When Remediation Triggers</h2>
+  <div class="desc">Two distinct trigger paths lead to auto-remediation.</div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-icon">🚨</div>
+      <h3>Instant Trigger — Critical Error Codes</h3>
+      <p>If the sign-in failure error code is one of the critical codes (Account Locked, Account Disabled, Password Expired), remediation fires immediately on the first event. No counting, no waiting.</p>
+      <span class="tag">50053 — Locked</span>
+      <span class="tag">50057 — Disabled</span>
+      <span class="tag">50055 — Expired</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">📊</div>
+      <h3>Threshold Trigger — Bad Password Accumulation</h3>
+      <p>Bad password attempts (error code 50126) are counted per user within a rolling 30-minute window. When the count reaches the configured threshold (default: 5), remediation is triggered. The window slides — old failures age out.</p>
+      <span class="tag">50126 — Bad Password</span>
+      <span class="tag green">Default Threshold: 5</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">🛡️</div>
+      <h3>Deduplication</h3>
+      <p>Once a user has been remediated, they're added to a dedup set. Subsequent events for the same user are processed and displayed in the live feed, but no duplicate remediation runs. This prevents password thrashing during an active incident.</p>
+      <span class="tag green">In-Memory Dedup Set</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ UI PAGES ═══════════════ -->
+<div class="section">
+  <div class="section-label">Frontend</div>
+  <h2>Web UI — 5 Pages</h2>
+  <div class="desc">React single-page application served from a single HTML file with Tailwind CSS and dark glass-morphism theme.</div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-icon">📊</div>
+      <h3>Dashboard</h3>
+      <p>Overview of recent sign-in failures fetched from Graph API. Shows error codes, user names, IPs, locations, and timestamps. Critical events are highlighted.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📡</div>
+      <h3>Live Feed</h3>
+      <p>Real-time event stream via WebSocket. Events appear as they flow from Event Hub. Start/Stop controls for the consumer. Auto-remediation results broadcast live.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">👥</div>
+      <h3>User Directory</h3>
+      <p>Lists all users from both Azure AD and Atomicwork. Shows name, email, phone, department, and status. Phone numbers enriched via Atomicwork email-lookup API.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔧</div>
+      <h3>Remediation</h3>
+      <p>Manual remediation trigger by email. Executes the full 5-step pipeline and shows step-by-step results. Also displays remediation history log.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">⚙️</div>
+      <h3>Settings</h3>
+      <p>Encrypted credential management for all 4 services. Secrets are masked in the UI. Test Connection buttons verify each integration. Lockout threshold configuration.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ API ENDPOINTS ═══════════════ -->
+<div class="section">
+  <div class="section-label">Backend</div>
+  <h2>API Endpoints</h2>
+  <div class="desc">FastAPI backend serving REST APIs and a WebSocket endpoint.</div>
+
+  <table class="api-table">
+    <thead>
+      <tr><th>Method</th><th>Endpoint</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="method get">GET</span></td><td class="endpoint">/</td><td>Serve React SPA</td></tr>
+      <tr><td><span class="method get">GET</span></td><td class="endpoint">/health</td><td>Health check for Azure App Service</td></tr>
+      <tr><td><span class="method get">GET</span></td><td class="endpoint">/api/config</td><td>Get config (secrets masked)</td></tr>
+      <tr><td><span class="method post">POST</span></td><td class="endpoint">/api/config</td><td>Save encrypted config</td></tr>
+      <tr><td><span class="method get">GET</span></td><td class="endpoint">/api/test/azure</td><td>Test Azure AD connection + permissions</td></tr>
+      <tr><td><span class="method get">GET</span></td><td class="endpoint">/api/test/atomicwork</td><td>Test Atomicwork API</td></tr>
+      <tr><td><span class="method get">GET</span></td><td class="endpoint">/api/test/twilio</td><td>Test Twilio SMS</td></tr>
+      <tr><td><span class="method get">GET</span></td><td class="endpoint">/api/test/eventhub</td><td>Test Event Hub connectivity</td></tr>
+      <tr><td><span class="method get">GET</span></td><td class="endpoint">/api/users/azure</td><td>List Azure AD users with phones</td></tr>
+      <tr><td><span class="method get">GET</span></td><td class="endpoint">/api/users/atomicwork</td><td>List Atomicwork users (enriched)</td></tr>
+      <tr><td><span class="method get">GET</span></td><td class="endpoint">/api/users/lookup/{email}</td><td>Lookup single user by email</td></tr>
+      <tr><td><span class="method get">GET</span></td><td class="endpoint">/api/signin/failures</td><td>Recent sign-in failures from Graph</td></tr>
+      <tr><td><span class="method post">POST</span></td><td class="endpoint">/api/remediate</td><td>Execute full 5-step remediation</td></tr>
+      <tr><td><span class="method get">GET</span></td><td class="endpoint">/api/remediation/history</td><td>Remediation audit log</td></tr>
+      <tr><td><span class="method post">POST</span></td><td class="endpoint">/api/eventhub/start</td><td>Start Event Hub consumer</td></tr>
+      <tr><td><span class="method post">POST</span></td><td class="endpoint">/api/eventhub/stop</td><td>Stop Event Hub consumer</td></tr>
+      <tr><td><span class="method get">GET</span></td><td class="endpoint">/api/events/recent</td><td>Recent live events buffer</td></tr>
+      <tr><td><span class="method ws">WS</span></td><td class="endpoint">/ws/events</td><td>WebSocket — live event push + ping/pong</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════ FILE STRUCTURE ═══════════════ -->
+<div class="section">
+  <div class="section-label">Project</div>
+  <h2>File Structure</h2>
+
+  <div class="file-tree">
+    <div><span class="dir">signin-monitor-ui/</span></div>
+    <div class="indent"><span class="file">app.py</span> <span class="comment">— FastAPI backend (850 lines): auth, APIs, WebSocket, Event Hub consumer, remediation</span></div>
+    <div class="indent"><span class="file">requirements.txt</span> <span class="comment">— Python dependencies: fastapi, uvicorn, gunicorn, httpx, msal, cryptography, azure-eventhub</span></div>
+    <div class="indent"><span class="file">deploy.sh</span> <span class="comment">— Azure App Service deployment script (resource group, plan, webapp, code push)</span></div>
+    <div class="indent"><span class="file">Dockerfile</span> <span class="comment">— Container option (Python 3.11-slim, gunicorn)</span></div>
+    <div class="indent"><span class="file">.secrets.enc</span> <span class="comment">— Encrypted credentials (AES-128, Fernet) — generated at runtime</span></div>
+    <div class="indent"><span class="file">.secrets.key</span> <span class="comment">— Fernet encryption key (chmod 600) — generated at runtime</span></div>
+    <div class="indent"><span class="dir">static/</span></div>
+    <div class="indent2"><span class="file">index.html</span> <span class="comment">— React SPA: 5 pages, WebSocket client, dark theme, Tailwind CSS</span></div>
+  </div>
+</div>
+
+<!-- ═══════════════ SECURITY ═══════════════ -->
+<div class="section">
+  <div class="section-label">Security</div>
+  <h2>Security Architecture</h2>
+
+  <div class="security-grid">
+    <div class="sec-item">
+      <div class="sec-icon">🔒</div>
+      <div>
+        <h4>Fernet Encryption (AES-128-CBC)</h4>
+        <p>All credentials (Azure secrets, API keys, Twilio tokens) are encrypted at rest using Fernet symmetric encryption. The encryption key is stored with file permissions 600.</p>
+      </div>
+    </div>
+    <div class="sec-item">
+      <div class="sec-icon">🎭</div>
+      <div>
+        <h4>Secret Masking in UI</h4>
+        <p>The GET /api/config endpoint returns masked values (first 6 + last 4 chars visible). Secrets never appear in browser DevTools network tab.</p>
+      </div>
+    </div>
+    <div class="sec-item">
+      <div class="sec-icon">🔐</div>
+      <div>
+        <h4>MSAL Confidential Client</h4>
+        <p>Azure auth uses MSAL ConfidentialClientApplication with client credentials flow. Tokens are cached in memory with TTL-based refresh.</p>
+      </div>
+    </div>
+    <div class="sec-item">
+      <div class="sec-icon">🔑</div>
+      <div>
+        <h4>Temp Password Generation</h4>
+        <p>Passwords generated using Python's cryptographic secrets module. 12 chars with guaranteed uppercase, lowercase, digit, and special character.</p>
+      </div>
+    </div>
+    <div class="sec-item">
+      <div class="sec-icon">🌐</div>
+      <div>
+        <h4>Network Restriction</h4>
+        <p>Azure App Service supports IP-based access restrictions. The deploy script provides a command to lock down to specific IP ranges (internal only).</p>
+      </div>
+    </div>
+    <div class="sec-item">
+      <div class="sec-icon">🚫</div>
+      <div>
+        <h4>Masked Value Rejection</h4>
+        <p>When saving config, any field containing the mask character (•) is silently ignored — preventing accidental overwrite with masked placeholder text.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ EXTERNAL SERVICES ═══════════════ -->
+<div class="section">
+  <div class="section-label">Integrations</div>
+  <h2>External Services & Permissions</h2>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-icon">🔐</div>
+      <h3>Azure AD (Microsoft Graph)</h3>
+      <p>Reads sign-in audit logs, lists users with phone numbers, resets passwords, and re-enables accounts. Requires an App Registration with client secret.</p>
+      <span class="tag">AuditLog.Read.All</span>
+      <span class="tag">Directory.Read.All</span>
+      <span class="tag">User.ReadWrite.All</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">📡</div>
+      <h3>Azure Event Hub</h3>
+      <p>Receives real-time sign-in log events via Azure AD Diagnostic Settings. The app connects as a consumer on the $Default consumer group, reading from @latest position.</p>
+      <span class="tag">Connection String</span>
+      <span class="tag">Hub Name</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">🎫</div>
+      <h3>Atomicwork</h3>
+      <p>ITSM platform for user lookup (email → profile + phone), ticket creation, and ticket resolution. Provides the audit trail for every remediation action.</p>
+      <span class="tag">x-api-key auth</span>
+      <span class="tag">REST API v1</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">📱</div>
+      <h3>Twilio</h3>
+      <p>Sends SMS notifications to affected users with their temporary password. Uses the Messages API with Account SID + Auth Token basic auth.</p>
+      <span class="tag">Account SID</span>
+      <span class="tag">Auth Token</span>
+      <span class="tag">From Number</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ DEPLOYMENT ═══════════════ -->
+<div class="section">
+  <div class="section-label">Infrastructure</div>
+  <h2>Azure Deployment</h2>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-icon">☁️</div>
+      <h3>Azure App Service (B1 Linux)</h3>
+      <p>Python 3.11 runtime with Oryx build pipeline. Gunicorn with 2 UvicornWorkers serving the FastAPI app on port 8000. Code deployed via <code>az webapp up</code> which triggers pip install automatically.</p>
+      <span class="tag">rg-atombank-signin</span>
+      <span class="tag">australiaeast</span>
+      <span class="tag green">B1 Plan</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">🚀</div>
+      <h3>Deployment Pipeline</h3>
+      <p>Single script (<code>deploy.sh</code>) handles: Resource Group → App Service Plan → Web App → Build Settings → Code Deploy → Startup Command → Restart. Redeployments only need Step 5–7.</p>
+      <span class="tag">az webapp up</span>
+      <span class="tag green">Oryx Build</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ TECH STACK ═══════════════ -->
+<div class="section">
+  <div class="section-label">Stack</div>
+  <h2>Technology Stack</h2>
+
+  <div class="cards" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+    <div class="card" style="text-align:center;">
+      <div class="card-icon">🐍</div>
+      <h3>Python 3.11</h3>
+      <p>Runtime</p>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div class="card-icon">⚡</div>
+      <h3>FastAPI</h3>
+      <p>Async Web Framework</p>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div class="card-icon">⚛️</div>
+      <h3>React 18</h3>
+      <p>Frontend SPA</p>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div class="card-icon">🎨</div>
+      <h3>Tailwind CSS</h3>
+      <p>Styling</p>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div class="card-icon">🔌</div>
+      <h3>WebSocket</h3>
+      <p>Live Streaming</p>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div class="card-icon">🔒</div>
+      <h3>Fernet / AES</h3>
+      <p>Encryption</p>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div class="card-icon">🔑</div>
+      <h3>MSAL</h3>
+      <p>Azure Auth</p>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div class="card-icon">🌐</div>
+      <h3>HTTPX</h3>
+      <p>Async HTTP Client</p>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div class="footer">
+  Atom Banking — Sign-In Monitor &nbsp;·&nbsp; Architecture Document &nbsp;·&nbsp; March 2026
+</div>
+
+</body>
+</html>

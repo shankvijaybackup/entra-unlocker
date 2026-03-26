@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+gunicorn
+httpx
+msal
+cryptography
+python-dotenv
+azure-eventhub
